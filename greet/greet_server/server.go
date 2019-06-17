@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bajusz15/grpc-go/greet/greetpb"
 	"google.golang.org/grpc"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -22,6 +23,7 @@ func (*server) Greet(ctx context.Context, req *greetpb.GreetRequest) (*greetpb.G
 	}
 	return res, nil
 }
+
 func (*server) GreetManyTimes(req *greetpb.GreetManyTimesRequest, stream greetpb.GreetService_GreetManyTimesServer) error {
 	firstName := req.GetGreeting().GetFirstName()
 	for i := 0; i < 10; i++ {
@@ -33,6 +35,49 @@ func (*server) GreetManyTimes(req *greetpb.GreetManyTimesRequest, stream greetpb
 		time.Sleep(1000 * time.Millisecond)
 	}
 	return nil
+}
+
+func (*server) LongGreet(stream greetpb.GreetService_LongGreetServer) error {
+	fmt.Println("LongGreet function was invoked with streaming request")
+	result := "hello"
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF{
+			return stream.SendAndClose(&greetpb.LongGreetResponse{
+				Result: result,
+			})
+			fmt.Println("finished reading the client")
+		}
+		if err != nil {
+			fmt.Println("valami nem jo a client streamnel: %v", err)
+		}
+		firstName := req.GetGreeting().GetFirstName()
+		//lastName := req.GetGreeting().GetLastName()
+		result += " " + firstName + "!"
+	}
+}
+
+func (*server) GreetEveryOne(stream greetpb.GreetService_GreetEveryOneServer) error{
+	fmt.Println("GreetEveryOne function was invoked with streaming request")
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF{
+			return nil
+		}
+		if err != nil {
+			log.Fatalf("Error while reading client stream: %v", err)
+		}
+		firstName := req.GetGreeting().GetFirstName()
+		result := "Hello " + firstName + "! "
+		err = stream.Send(&greetpb.GreetEveryOneResponse{
+			Result: result,
+		})
+		if err != nil {
+			log.Fatalf("Error while sending data to cloent: %v", err)
+			return err
+		}
+	}
 }
 func main() {
 	fmt.Println("Hello world")
